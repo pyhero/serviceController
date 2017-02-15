@@ -1,0 +1,137 @@
+#!/bin/bash
+#
+# Author: Panda
+# Update: 20160628
+#
+# cms cluster control;
+
+## First need to define all servers' IP ADDRESS: !!!
+#--------------------------------------------------------------------#
+# SORT ALL sers as START sequence. As stop will Reverse the sequence.#
+#--------------------------------------------------------------------#
+SERS="10.4.101.5 10.4.101.12 10.4.101.14 10.4.101.6 10.4.101.104 10.4.101.8"
+##  !!! ###
+user=""
+
+
+
+##.
+printHelp () {
+	echo "Usage:$0 -A {start|stop|restart|status} [-H ip-address] [-D]"
+	echo -e "\t-A: start|stop|restart|status"
+	echo -e "\t-H: Run commands on single server."
+	echo -e "\t-D: Disable confirm."
+	exit 2
+}
+
+[ $# -lt 2 ] && printHelp
+
+CONFIRM=1
+while getopts A::H::D opt;do
+	case $opt in
+		A)
+			ACT=$OPTARG
+			;;
+		H)
+			SER=$OPTARG
+			;;
+		D)
+			CONFIRM=0
+			;;
+		h|*)
+			printHelp
+	esac
+done
+
+runCommand () {
+	[ -z $port ] && port="22"
+	[ -z $user ] && user="root"
+	[ -z $(echo $com|awk '{print $1}') ] && echo -e "Need define variable \e[32;47mcom\e[0m first." && exit 2
+	[ -z $ip ] && echo -e "Get variable \e[32;47mip\e[0m failed." && exit 2
+	echo -e "@\e[1;4;36m$ip\e[0m,run: \e[1;4;32m$com\e[0m :"
+	0</dev/null ssh -o ConnectTimeout=3 -p $port $user@$ip /usr/bin/sudo -i $com
+	REV=$?
+	if [ $REV -ne 0 -a $REV -ne 124 ];then
+		echo -e "\e[32m$ip\e[0m \e[31mfailed\e[0m.Process single server run:\e[1;35m$0 -A $ACT -H $ip\e[0m"
+	else
+		echo -e "\e[32m$ip\e[0m done."
+	fi
+}
+
+doRun () {
+	[ -z $(echo $ips|awk '{print $1}') ] && echo -e "Need define variable \e[32;47mips\e[0m first." && exit 2
+	for ip in $ips;do
+		runCommand
+		[ $CONFIRM == 1 ] && [ -z $SER ] && confirm
+	done
+}
+
+confirm () {
+	[ $ip == $(echo $ips|awk '{print $NF}') ] && echo "All Done. " && exit 0
+	while :;do
+		read -p "Go on next server ? {y|n}: " INP
+		case $INP in
+			y|Y)
+				break
+				;;
+			n|N)
+				echo -e "\e[1;31m$(echo $ips|awk -F"$ip" '{print $NF}')\e[0m not done."
+				exit
+				;;
+			*)
+				echo "Please type 'y' or 'n'"
+				continue
+		esac
+	done
+}
+
+start () {
+	[ -z $ips ] && ips="$SERS"
+	com="/etc/init.d/cms start"
+	doRun
+}
+
+stop () {
+	[ -z $ips ] && ips=$(echo $SERS|awk '{i=NF;while(i>0){print $i;i--}}')
+	com="/etc/init.d/cms stop"
+	doRun
+}
+
+status () {
+	[ -z $ips ] && ips="$SERS"
+	com="/etc/init.d/cms status"
+	doRun
+}
+
+if [ ! -z $SER ];then
+	for i in $SERS;do
+		case $SER in
+			$i)
+				ips=$i
+				break
+		esac
+	done
+	[ -z $ips ] && echo -e "\e[33m$SER\e[0m not in \e[32m$SERS\e[0m" && exit 2
+fi
+
+case $ACT in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		stop
+		sleep 9
+		if [ -z $SER ];then
+			ips=''
+		fi
+		start
+		;;
+	status)
+		status
+		;;
+	*)
+		printHelp
+esac

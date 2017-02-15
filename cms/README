@@ -1,0 +1,6 @@
+1.选台中控机,为user创建rsa key.
+2.将中控机的公钥传给每台机器.
+3.修改visudo:#Defaults    requiretty
+4.cms.ip 文件同步到对应ip:/etc/init.d/;并更名为:cms
+
+5.中控机上运行cmsController 来控制所有机器

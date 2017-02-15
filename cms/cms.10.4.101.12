@@ -1,0 +1,86 @@
+#!/bin/bash
+#
+# chkconfig:   - 85 15
+# description: cms-2
+#
+# Author: Panda
+# Update: 20160628
+#
+
+printHelp () {
+	echo "Usage:$0 {start|stop|status}"
+	exit 2
+}
+
+[ $# -lt 1 ] && printHelp
+ACT=$1
+
+##.define log file
+logs="/tmp/cms_client.log"
+readLog () {
+	READ_TIME="8"	#seconds
+	if cat /etc/redhat-release | egrep -q 'release [4-5]\.';then
+		COMMAND="/home/xx/timeout ${READ_TIME}"
+	else
+		COMMAND="/usr/bin/timeout ${READ_TIME}s"
+	fi
+	for log in $logs;do
+		[ ! -f $log ] && echo -e "\e[31m$log\e[0m:no such log file." && continue
+		echo -e "tailing log:\e[32m$log\e[0m(${READ_TIME}s)..."
+		$COMMAND tail -f $log
+	done
+}
+
+start () {
+	/usr/local/resin/bin/httpd.sh start
+	echo "Waitting for service starting(10 seconds)..."
+	sleep 10
+}
+
+stop () {
+	/usr/local/resin/bin/httpd.sh stop
+	echo "Waitting for service stopping(5 seconds)..."
+	sleep 5
+	killall -9 cmsclient
+	killall -9 perl
+}
+
+status () {
+	echo -e "Service status(\e[32mEmpty means no such process\e[0m):"
+	/bin/ps aux | grep perl | grep -vw grep
+	REV_PERL=$?
+	/bin/ps aux | grep cmsclient | grep -vw grep
+	REV_CMS=$?
+}
+
+confirm () {
+	for ((i=1;i<=3;i++));do
+		status
+		if [ $REV_PERL -ne 0 -o $REV_CMS -ne 0 ];then
+			echo "Waitting for service start ..."
+			sleep 5
+			continue
+		else
+			break
+		fi
+	done
+}
+
+case $ACT in
+	start)
+		start
+		#confirm
+		status
+		readLog
+		;;
+	stop)
+		stop
+		status
+		;;
+	status)
+		status
+		readLog
+		;;
+	*)
+		printHelp
+esac

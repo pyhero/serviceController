@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# Author: Panda
+# Update: 20161010
+#
+# m cluster control;
+
+## First need to define all servers' IP ADDRESS: !!!
+SERS="10.4.102.106 10.4.102.107 10.4.102.108 10.4.102.109"
+##  !!! ###
+user=""
+
+
+##.
+printHelp () {
+	echo "Usage:$0 -A {start|stop|restart|status} [-H ip-address]"
+	echo -e "\t-A: start|stop|restart|status"
+	echo -e "\t-H: Run commands on single server."
+	exit 2
+}
+
+[ $# -lt 2 ] && printHelp
+
+while getopts A::H: opt;do
+	case $opt in
+		A)
+			ACT=$OPTARG
+			;;
+		H)
+			SER=$OPTARG
+			;;
+		h|*)
+			printHelp
+	esac
+done
+
+runCommand () {
+	[ -z $port ] && port="22"
+	[ -z $user ] && user="root"
+	[ -z $(echo $com|awk '{print $1}') ] && echo -e "Need define variable \e[32;47mcom\e[0m first." && exit 2
+	[ -z $ip ] && echo -e "Get variable \e[32;47mip\e[0m failed." && exit 2
+	echo -e "@\e[1;4;36m$ip\e[0m,run: \e[1;4;32m$com\e[0m :"
+	0</dev/null ssh -o ConnectTimeout=3 -p $port $user@$ip /usr/bin/sudo -i $com
+	REV=$?
+	if [ $REV -ne 0 -a $REV -ne 124 ];then
+		echo -e "\e[32m$ip\e[0m \e[31mfailed\e[0m.Process single server run:\e[1;35m$0 -A $ACT -V $VERSION -H $ip\e[0m"
+	else
+		echo -e "\e[32m$ip\e[0m done."
+	fi
+}
+
+doRun () {
+	[ -z $(echo $ips|awk '{print $1}') ] && echo -e "Need define variable \e[32;47mips\e[0m first." && exit 2
+	for ip in $ips;do
+		runCommand
+	done
+}
+
+WORKDIR="/opt/tomcat/bin"
+DOMAIN="m.hexun.com"
+URI=""
+
+[ -z $ips ] && ips="$SERS"
+start () {
+	com="$WORKDIR/startup.sh"
+	doRun
+}
+
+stop () {
+	com="$WORKDIR/shutdown.sh"
+	doRun
+}
+
+status () {
+	for ip in $ips;do
+		URL="http://$ip/$URI"
+		HTTP_CODE=$(/usr/bin/curl -o /dev/null -s -w "%{http_code}" "$URL")
+		echo "<$URL> @ <$ip>: $HTTP_CODE"
+	done
+}
+
+if [ ! -z $SER ];then
+	for i in $SERS;do
+		case $SER in
+			$i)
+				ips=$i
+				break
+		esac
+	done
+	[ -z $ips ] && echo -e "\e[33m$SER\e[0m not in \e[32m$SERS\e[0m" && exit 2
+fi
+
+case $ACT in
+	start)
+		start
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		stop
+		sleep 5
+		if [ -z $SER ];then
+			ips=''
+		fi
+		start
+		;;
+	status)
+		status
+		;;
+	*)
+		printHelp
+esac

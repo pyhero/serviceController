@@ -1,0 +1,87 @@
+#!/bin/bash
+#
+# chkconfig:   - 85 15
+# description: cms-1
+#
+# Author: Panda
+# Update: 20160628
+#
+
+printHelp () {
+	echo "Usage:$0 {start|stop|status}"
+	exit 2
+}
+
+[ $# -lt 1 ] && printHelp
+ACT=$1
+
+##.define log file
+logs="/tmp/cms_server.log"
+readLog () {
+	READ_TIME="8"	#seconds
+	if cat /etc/redhat-release | egrep -q 'release [4-5]\.';then
+		COMMAND="/home/xx/timeout ${READ_TIME}"
+	else
+		COMMAND="/usr/bin/timeout ${READ_TIME}s"
+	fi
+	for log in $logs;do
+		[ ! -f $log ] && echo -e "\e[31m$log\e[0m:no such log file." && continue
+		echo -e "tailing log:\e[32m$log\e[0m(${READ_TIME}s)..."
+		$COMMAND tail -f $log
+	done
+}
+
+tailLog () {
+	for log in $logs;do
+		[ ! -f $log ] && echo -e "\e[31m$log\e[0m:no such log file." && continue
+		echo -e "tailing log($log) until \e[32mRMI Server ready\e[0m ..."
+		sh -c "tail --pid=$$ -f $log | { sed '/RMI Server ready/ q' && kill $$ ;}"
+	done
+}
+
+start () {
+	/root/cms/server/startServer.sh
+	#echo "Waitting for service starting(20 seconds)..."
+	#sleep 20
+}
+
+stop () {
+	/root/cms/server/stopServer.sh
+}
+
+status () {
+	echo -e "Service status(\e[32mEmpty means no such process\e[0m):"
+	/bin/ps aux | grep cmsserver | grep -vw grep
+	REV=$?
+}
+
+confirm () {
+	for ((i=0;i<=3;i++));do
+		status
+		if [ $REV -ne 0 ];then
+			echo "Waitting for service start ..."
+			sleep 5
+			continue
+		else
+			break
+		fi
+	done
+}
+
+case $ACT in
+	start)
+		start
+		#status
+		tailLog
+		;;
+	stop)
+		stop
+		status
+		;;
+	status)
+		status
+		readLog
+		;;
+	*)
+		printHelp
+esac
